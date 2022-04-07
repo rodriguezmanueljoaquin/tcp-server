@@ -1,8 +1,6 @@
 
 from enum import Enum
 
-from utils import AuthenticationKeyPair
-
 
 DELIMITER = "\a\b"
 
@@ -19,9 +17,17 @@ class Orientation(Enum):
     WEST = -2
 
 
-class AuthenticationKeys(Enum):
-    KEY_0 = AuthenticationKeyPair(23019, 32037)
-    KEY_1 = AuthenticationKeyPair(32037, 29295)
-    KEY_2 = AuthenticationKeyPair(18789, 13603)
-    KEY_3 = AuthenticationKeyPair(16443, 29533)
-    KEY_4 = AuthenticationKeyPair(18189, 21952)
+
+class ServerMessages(Enum):
+    KEY_REQUEST = "107 KEY REQUEST" + DELIMITER
+    CONFIRMATION = "" + DELIMITER
+    MOVE = "102 MOVE" + DELIMITER
+    TURN_LEFT = "103 TURN LEFT" + DELIMITER
+    TURN_RIGHT = "104 TURN RIGHT" + DELIMITER
+    PICK_UP = "105 GET MESSAGE" + DELIMITER
+    LOGOUT = "106 LOGOUT" + DELIMITER
+    OK = "200 OK" + DELIMITER
+    LOGIN_FAILED = "300 LOGIN FAILED" + DELIMITER
+    SYNTAX_ERROR = "301 SYNTAX ERROR" + DELIMITER
+    LOGIC_ERROR = "302 LOGIC ERROR" + DELIMITER
+    KEY_OUT_OF_RANGE_ERROR = "303 KEY OUT OF RANGE" + DELIMITER

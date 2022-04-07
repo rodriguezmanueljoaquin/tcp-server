@@ -1,25 +1,5 @@
-from enum import Enum
-from constants import Orientation
-from utils import Coordinates
-
-
-class RobotStates(Enum):
-    # Server waiting for:
-    USERNAME = 0
-    KEY = 1
-    CONFIRMATION_KEY = 2
-    FIRST_MOVE = 3
-    ORIENTATION = 4
-    COMMAND = 5
-    DISCOVER_SECRET = 6
-    WAIT_SECRET = 7
-    DISCONNECTED = 8
-
-
-class RobotDirection(Enum):
-    FORWARD = 0
-    RIGHT = 1
-    LEFT = 2
+from constants import Orientation, Side
+from robot_constants import AuthenticationKeys, RobotDirection, RobotStates
 
 
 class Robot:
@@ -31,13 +11,27 @@ class Robot:
         self.orientation = 'None'
 
     def __str__(self):
-        return "Robot info:\n\tName: " + self.username + ", state: " + self.state.name + ", coordinates: " + str(self.coordinates) + ", orientation: " + self.orientation.name
+        return "Robot info:\n\tName: " + self.username + ", state: " + str(self.state) + ", coordinates: " + str(self.coordinates) + ", orientation: " + str(self.orientation)
+
+
+def calculate_hash(username, key, server_side):
+    username_value = 0
+    for i in range(len(username)):
+        username_value += ord(username[i])
+
+    key_name = "KEY_" + str(key)
+    if server_side == Side.SERVER:
+        auth_hash = AuthenticationKeys[key_name].value.server_key
+    else:
+        auth_hash = AuthenticationKeys[key_name].value.client_key
+
+    return (username_value * 1000 + auth_hash) % 65536
 
 
 def new_direction(current_orientation, searched_orientation):
     orientation_to_the_right = Orientation(
         (abs(current_orientation.value * 2)) % 3 * (-1 if current_orientation.value % 3 == 2 else 1))
-    if current_orientation.name == searched_orientation.name:
+    if current_orientation == searched_orientation:
         dir = RobotDirection.FORWARD
         new_orientation = current_orientation
     elif current_orientation == Orientation(searched_orientation.value*-1) or searched_orientation == orientation_to_the_right:
@@ -51,6 +45,28 @@ def new_direction(current_orientation, searched_orientation):
 
 
 def get_direction(current_coordinates, current_orientation):
+    if current_coordinates.x == 0:
+        if current_coordinates.y == 0:
+            dir = None
+            new_orientation = current_orientation
+        elif current_coordinates.y > 0:
+            (new_orientation, dir) = new_direction(
+                current_orientation, Orientation.SOUTH)
+        else:
+            (new_orientation, dir) = new_direction(
+                current_orientation, Orientation.NORTH)
+    else:
+        if current_coordinates.x > 0:
+            (new_orientation, dir) = new_direction(
+                current_orientation, Orientation.WEST)
+        else:
+            (new_orientation, dir) = new_direction(
+                current_orientation, Orientation.EAST)
+    return (new_orientation, dir)
+
+
+def get_direction_diagonalized(current_coordinates, current_orientation):
+    # This method allows the robot to get to the end on the minimum number of moves but using a lot of turns
     if current_coordinates.x == 0:
         if current_coordinates.y == 0:
             dir = None

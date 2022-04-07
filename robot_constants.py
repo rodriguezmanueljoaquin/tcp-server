@@ -1,6 +1,29 @@
 from enum import Enum
 
-from constants import DELIMITER, AuthenticationKeys
+from utils import AuthenticationKeyPair
+
+
+class RobotStates(Enum):
+    # Server waiting for:
+    USERNAME = 0
+    KEY = 1
+    CONFIRMATION_KEY = 2
+    FIRST_MOVE = 3
+    ORIENTATION = 4
+    COMMAND = 5
+    WAIT_SECRET = 6
+    LOGOUT = 7
+
+
+class RobotDirection(Enum):
+    FORWARD = 0
+    RIGHT = 1
+    LEFT = 2
+
+
+class RobotTimes(Enum):
+    TIMEOUT = 1
+    TIMEOUT_RECHARGING = 5
 
 
 class RobotMessageRestriction:
@@ -20,28 +43,9 @@ class RobotMessagesRestrictions(Enum):
     MESSAGE = RobotMessageRestriction(100)
 
 
-class ServerMessages(Enum):
-    SERVER_KEY_REQUEST = "107 KEY REQUEST" + DELIMITER
-    SERVER_CONFIRMATION = "" + DELIMITER
-    SERVER_MOVE = "102 MOVE" + DELIMITER
-    SERVER_TURN_LEFT = "103 TURN LEFT" + DELIMITER
-    SERVER_TURN_RIGHT = "104 TURN RIGHT" + DELIMITER
-    SERVER_PICK_UP = "105 GET MESSAGE" + DELIMITER
-    SERVER_LOGOUT = "106 LOGOUT" + DELIMITER
-    SERVER_OK = "200 OK" + DELIMITER
-    SERVER_LOGIN_FAILED = "300 LOGIN FAILED" + DELIMITER
-    SERVER_SYNTAX_ERROR = "301 SYNTAX ERROR" + DELIMITER
-    SERVER_LOGIC_ERROR = "302 LOGIC ERROR" + DELIMITER
-    SERVER_KEY_OUT_OF_RANGE_ERROR = "303 KEY OUT OF RANGE" + DELIMITER
-
-
-def calculate_hash(username, key, server_side):
-    username_value = 0
-    for i in range(len(username)):
-        username_value += ord(username[i])
-
-    if server_side:
-        auth_hash = AuthenticationKeys.KEY_0.value.server_key
-    else:
-        auth_hash = AuthenticationKeys.KEY_0.value.client_key
-    return (username_value * 1000 + auth_hash) % 65536
+class AuthenticationKeys(Enum):
+    KEY_0 = AuthenticationKeyPair(23019, 32037)
+    KEY_1 = AuthenticationKeyPair(32037, 29295)
+    KEY_2 = AuthenticationKeyPair(18789, 13603)
+    KEY_3 = AuthenticationKeyPair(16443, 29533)
+    KEY_4 = AuthenticationKeyPair(18189, 21952)

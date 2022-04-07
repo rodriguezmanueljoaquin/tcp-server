@@ -1,26 +1,24 @@
 import os
 import socket
 from robot import Robot
+from robot_constants import RobotTimes
 from robot_state_machine import new_robot_state_machine
 
 
 def serve_client(socket):
     robot = Robot()
 
+    data = ""
     while True:
         # recv gets sequence of bytes -> decoding into string
 
-        data = socket.recv(1024).decode()
+        data += socket.recv(1024).decode()
         if not data:
             # connection closed
             print("Robot disconnected ", robot)
             return
 
-        print(data)
         data = sm.run(robot, data, socket)
-
-        # TODO: No se puede sacar? sin esto se bloquea el recv
-        # socket.send("ack".encode())
 
         if data is None:
             # robot reached an end state
@@ -51,7 +49,7 @@ while True:
     l.close()
 
     print(address)
-    new_socket.settimeout(1000)
+    new_socket.settimeout(RobotTimes.TIMEOUT.value)
     try:
         serve_client(new_socket)
         new_socket.close()

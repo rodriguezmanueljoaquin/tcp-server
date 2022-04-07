@@ -3,9 +3,8 @@ import sys
 from time import sleep
 import fileinput
 from constants import Orientation, Side, DELIMITER
-from robot import Robot
+from robot import Robot, calculate_hash
 
-from robot_constants import calculate_hash
 from utils import Coordinates
 
 
@@ -46,11 +45,9 @@ robot.orientation = Orientation.SOUTH
 s.connect(('localhost', 6667))
 
 s.send((robot.username+"\a\b").encode())
-sleep(1)
 print(s.recv(1024).decode())
 
 s.send((str(robot.key)+"\a\b").encode())
-sleep(1)
 hash_received_plain = s.recv(1024).decode()
 print(hash_received_plain)
 
@@ -59,16 +56,13 @@ hash_received = int(hash_received_plain.split(DELIMITER)[0])
 print("Hash valido? " + str(hash_expected == hash_received))
 hash = calculate_hash(robot.username, robot.key, Side.CLIENT)
 s.send((str(hash)+"\a\b").encode())
-sleep(1)
 print(s.recv(1024).decode())
 
-sleep(1)
 print(s.recv(1024).decode())
 
 while True:
     s.send("OK " + str(robot.coordinates.x) + " " +
            str(robot.coordinates.y) + "\a\b".encode())
-    sleep(1)
     msg = s.recv(1024).decode()
     print(msg)
     if "102" in msg:
@@ -77,14 +71,17 @@ while True:
         robot.orientation = orientation_change(robot.orientation, "LEFT")
     elif "104" in msg:
         robot.orientation = orientation_change(robot.orientation, "RIGHT")
+    elif "105" in msg:
+        s.send(("secret message!"+"\a\b").encode())
+    elif "106" in msg:
+        break
     else:
         print("Unknown command received")
         break
-    sleep(1)
 
 
 s.close()
-pass
+exit()
 
 # testing with input
 for line in fileinput.input():
