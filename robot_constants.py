@@ -3,10 +3,6 @@ from enum import Enum
 from constants import DELIMITER, AuthenticationKeys
 
 
-class Side(Enum):
-	SERVER = 1
-	CLIENT = 0
-
 class RobotMessageRestriction:
     def __init__(self, max_length, min_value=-1, max_value=-1):
         self.max_length = max_length

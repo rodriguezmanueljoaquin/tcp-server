@@ -1,12 +1,15 @@
+
 from enum import Enum
+
+from utils import AuthenticationKeyPair
+
 
 DELIMITER = "\a\b"
 
 
-class AuthenticationKeyPair:
-    def __init__(self, server_key, client_key):
-        self.server_key = server_key
-        self.client_key = client_key
+class Side(Enum):
+    SERVER = 1
+    CLIENT = 0
 
 
 class Orientation(Enum):
@@ -14,15 +17,6 @@ class Orientation(Enum):
     SOUTH = -1
     EAST = 2
     WEST = -2
-
-
-class Coordinates:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-
-    def __str__(self):
-        return "(" + str(self.x) + ", " + str(self.y) + ")"
 
 
 class AuthenticationKeys(Enum):

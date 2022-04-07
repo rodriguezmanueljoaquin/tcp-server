@@ -1,19 +1,10 @@
 from time import sleep
 from enum import Enum
 
-from constants import DELIMITER, Coordinates, Orientation
-from robot_messages import RobotMessagesRestrictions, ServerMessages, Side, calculate_hash
-
-
-class RobotStates(Enum):
-    # Server waiting for:
-    USERNAME: int = 0
-    KEY: int = 1
-    CONFIRMATION_KEY: int = 2
-    DISCOVER: int = 3
-    ORIENTATION: int = 4
-    COMMAND: int = 5
-    END: int = 6
+from constants import DELIMITER, Orientation, Side
+from robot import RobotDirection, get_direction, RobotStates
+from robot_constants import RobotMessagesRestrictions, ServerMessages, calculate_hash
+from utils import Coordinates
 
 
 class RobotStateMachine:
@@ -88,28 +79,28 @@ def confirmation_key_transition(robot, msg, client_socket):
             ServerMessages.SERVER_LOGIN_FAILED.value.encode())
         return None
 
-    robot.state = RobotStates.DISCOVER
+    robot.state = RobotStates.FIRST_MOVE
     client_socket.send(ServerMessages.SERVER_OK.value.encode())
     sleep(5)
     client_socket.send(ServerMessages.SERVER_MOVE.value.encode())
 
 
-def discover_transition(robot, msg, client_socket):
-    positions = msg.split(" ")[1:]
-    robot.coordinates = Coordinates(positions)
+def first_move_transition(robot, msg, client_socket):
+    positions = [*map(lambda x: int(x), msg.split(" ")[1:])]
+    robot.coordinates = Coordinates(*positions)
     client_socket.send(ServerMessages.SERVER_MOVE.value.encode())
     robot.state = RobotStates.ORIENTATION
 
 
 def orientation_transition(robot, msg, client_socket):
-    new_coordinates = Coordinates(msg.split(" ")[1:])
+    new_coordinates = Coordinates(*msg.split(" ")[1:])
     orientation_value = (robot.coordinates.x - new_coordinates.x) * \
         2 + (robot.coordinates.y - new_coordinates.y)
     robot.orientation = {
-        -2: Orientation.NORTH,
-        2: Orientation.SOUTH,
-        1: Orientation.EAST,
-        -1: Orientation.WEST
+        -2: Orientation.WEST,
+        2: Orientation.EAST,
+        1: Orientation.SOUTH,
+        -1: Orientation.NORTH
     }.get(orientation_value, None)
     robot.coordinates = new_coordinates
 
@@ -119,66 +110,39 @@ def orientation_transition(robot, msg, client_socket):
         return
 
     robot.state = RobotStates.COMMAND
-
-
-def turn_to(current_orientation, searched_orientation):
-    orientation_to_the_right = Orientation(
-        (abs(current_orientation.value * 2)) % 3 * (-1 if current_orientation.value %2 == 0 else 1))
-    print(orientation_to_the_right)
-    if current_orientation == searched_orientation:
-        turn = None
-    elif current_orientation == Orientation(searched_orientation.value*-1) or searched_orientation == orientation_to_the_right:
-        turn = "RIGHT"
-    else:
-        turn = "LEFT"
-
-    return turn
-
-
-print(turn_to(Orientation.NORTH, Orientation.EAST))
-print(turn_to(Orientation.EAST, Orientation.SOUTH))
-print(turn_to(Orientation.SOUTH, Orientation.WEST))
-print(turn_to(Orientation.WEST, Orientation.NORTH))
+    command_transtition(robot, msg, client_socket)
 
 
 def command_transtition(robot, msg, client_socket):
-    new_coordinates = Coordinates(msg.split(" ")[1:])
-    if new_coordinates == robot.coordinates:
+
+    current_coordinates = Coordinates(*msg.split(" ")[1:])
+    print(str(current_coordinates), robot.orientation)
+    if current_coordinates == robot.coordinates:
+        # TODO: should rotate to the correct side and go forward
         client_socket.send(ServerMessages.SERVER_TURN_RIGHT.value.encode())
         return
 
-    robot.coordinates = new_coordinates
-    if robot.coordinates.x == 0:
-        if robot.coordinates.y == 0:
-            robot.state = RobotStates.END
-            return
-        elif robot.coordinates.y > 0:
-            # hacia el sur
-            turn = turn_to(robot.orientation, Orientation.SOUTH)
-        else:
-            # hacia el norte
-            turn = turn_to(robot.orientation, Orientation.NORTH)
+    robot.coordinates = current_coordinates
+    (new_orientation, dir) = get_direction(
+        robot.coordinates, robot.orientation)
+    robot.orientation = new_orientation
+    if dir is None:
+        # reached 0,0
+        robot.state = RobotStates.DISCOVER_SECRET
+    elif dir == RobotDirection.FORWARD:
+        client_socket.send(ServerMessages.SERVER_MOVE.value.encode())
+    elif dir == RobotDirection.RIGHT:
+        client_socket.send(ServerMessages.SERVER_TURN_RIGHT.value.encode())
     else:
-        if robot.coordinates.x > 0:
-            # hacia el oeste
-            turn = turn_to(robot.orientation, Orientation.WEST)
-        else:
-            # hacia el este
-            turn = turn_to(robot.orientation, Orientation.EAST)
-
-    print(turn)
+        client_socket.send(ServerMessages.SERVER_TURN_LEFT.value.encode())
 
 
-def turn_to(current_orientation, searched_orientation):
-    if current_orientation == searched_orientation:
-        return None
+def discover_transition(robot, msg, client_socket):
+    pass
 
-    return {
-        "RIGHT": 2,
-        2: Orientation.SOUTH,
-        1: Orientation.EAST,
-        -1: Orientation.WEST
-    }.get(current_orientation - searched_orientation, None)
+
+def wait_secret_transition(robot, msg, client_socket):
+    pass
 
 
 def new_robot_state_machine():
@@ -186,12 +150,14 @@ def new_robot_state_machine():
     sm.add_state(RobotStates.USERNAME, username_transition)
     sm.add_state(RobotStates.KEY, key_transition)
     sm.add_state(RobotStates.CONFIRMATION_KEY, confirmation_key_transition)
-    sm.add_state(RobotStates.DISCOVER, discover_transition)
+    sm.add_state(RobotStates.FIRST_MOVE, first_move_transition)
     sm.add_state(RobotStates.ORIENTATION, orientation_transition)
     sm.add_state(RobotStates.COMMAND, command_transtition)
+    sm.add_state(RobotStates.DISCOVER_SECRET, discover_transition)
+    sm.add_state(RobotStates.WAIT_SECRET, wait_secret_transition)
 
     sm.set_start_state(RobotStates.USERNAME)
 
-    sm.set_end_state(RobotStates.END)
+    sm.set_end_state(RobotStates.DISCONNECTED)
 
     return sm
