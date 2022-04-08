@@ -11,6 +11,7 @@ class Robot:
         self.orientation = 'None'
         self.last_rotation = 'None'
         self.last_action = 'None'
+        self.recharging = False
 
     def __str__(self):
         return "Robot info:\n\tName: " + self.username + ", state: " + str(self.state) + ", coordinates: " + str(self.coordinates) + ", orientation: " + str(self.orientation)

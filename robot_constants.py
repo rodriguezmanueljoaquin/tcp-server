@@ -3,6 +3,18 @@ from enum import Enum
 from utils import AuthenticationKeyPair
 
 
+USERNAME_MAX_LENGTH = 18
+MESSAGE_MAX_LENGTH = 98
+KEY_MIN_VALUE = 0
+KEY_MAX_VALUE = 4
+HASH_MIN_VALUE = 0
+HASH_MAX_VALUE = 2 ** 16
+RECHARGING_STR = "RECHARGING"
+FULLPOWER_STR = "FULL POWER"
+TIMEOUT = 1
+TIMEOUT_RECHARGING = 5
+
+
 class RobotStates(Enum):
     # Server waiting for:
     USERNAME = 0
@@ -16,6 +28,7 @@ class RobotStates(Enum):
     DODGE_SECOND_FORWARD = 8
     WAIT_SECRET = 9
     LOGOUT = 10
+    RCHARGING = 11
 
 
 class RobotAction(Enum):
@@ -24,26 +37,11 @@ class RobotAction(Enum):
     TURN_LEFT = -1
 
 
-class RobotTimes(Enum):
-    TIMEOUT = 1
-    TIMEOUT_RECHARGING = 5
-
-
 class RobotMessageRestriction:
     def __init__(self, max_length, min_value=-1, max_value=-1):
         self.max_length = max_length
         self.min_value = min_value
         self.max_value = max_value
-
-
-class RobotMessagesRestrictions(Enum):
-    USERNAME = RobotMessageRestriction(18)
-    KEY_ID = RobotMessageRestriction(-1, 0, 4)
-    CONFIRMATION = RobotMessageRestriction(5)
-    OK = RobotMessageRestriction(2)
-    RECHARGING = RobotMessageRestriction(0)
-    FULL_POWER = RobotMessageRestriction(0)
-    MESSAGE = RobotMessageRestriction(100)
 
 
 class AuthenticationKeys(Enum):

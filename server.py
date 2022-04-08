@@ -1,7 +1,8 @@
 import os
 import socket
+
+import robot_constants
 from robot import Robot
-from robot_constants import RobotTimes
 from robot_state_machine import new_robot_state_machine
 
 
@@ -49,7 +50,7 @@ while True:
     l.close()
 
     print(address)
-    new_socket.settimeout(RobotTimes.TIMEOUT.value)
+    new_socket.settimeout(robot_constants.TIMEOUT)
     try:
         serve_client(new_socket)
         new_socket.close()
