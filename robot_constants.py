@@ -11,14 +11,17 @@ class RobotStates(Enum):
     FIRST_MOVE = 3
     ORIENTATION = 4
     COMMAND = 5
-    WAIT_SECRET = 6
-    LOGOUT = 7
+    DODGE_FIRST_FORWARD = 6
+    DODGE_SECOND_ROTATION = 7
+    DODGE_SECOND_FORWARD = 8
+    WAIT_SECRET = 9
+    LOGOUT = 10
 
 
-class RobotDirection(Enum):
-    FORWARD = 0
-    RIGHT = 1
-    LEFT = 2
+class RobotAction(Enum):
+    GO_FORWARD = 0
+    TURN_RIGHT = 1
+    TURN_LEFT = -1
 
 
 class RobotTimes(Enum):

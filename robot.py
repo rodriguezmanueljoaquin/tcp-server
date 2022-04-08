@@ -1,5 +1,5 @@
 from constants import Orientation, Side
-from robot_constants import AuthenticationKeys, RobotDirection, RobotStates
+from robot_constants import AuthenticationKeys, RobotAction, RobotStates
 
 
 class Robot:
@@ -9,6 +9,8 @@ class Robot:
         self.key = -1
         self.coordinates = 'None'
         self.orientation = 'None'
+        self.last_rotation = 'None'
+        self.last_action = 'None'
 
     def __str__(self):
         return "Robot info:\n\tName: " + self.username + ", state: " + str(self.state) + ", coordinates: " + str(self.coordinates) + ", orientation: " + str(self.orientation)
@@ -32,20 +34,32 @@ def new_direction(current_orientation, searched_orientation):
     orientation_to_the_right = Orientation(
         (abs(current_orientation.value * 2)) % 3 * (-1 if current_orientation.value % 3 == 2 else 1))
     if current_orientation == searched_orientation:
-        dir = RobotDirection.FORWARD
+        dir = RobotAction.GO_FORWARD
         new_orientation = current_orientation
     elif current_orientation == Orientation(searched_orientation.value*-1) or searched_orientation == orientation_to_the_right:
-        dir = RobotDirection.RIGHT
+        dir = RobotAction.TURN_RIGHT
         new_orientation = orientation_to_the_right
     else:
-        dir = RobotDirection.LEFT
+        dir = RobotAction.TURN_LEFT
         new_orientation = Orientation(orientation_to_the_right.value * -1)
 
     return (new_orientation, dir)
 
 
 def get_direction(current_coordinates, current_orientation):
-    if current_coordinates.x == 0:
+    # could be more efficient, this one makes unnecesary turns
+    should_go_forward = {
+        Orientation.NORTH: current_coordinates.y < 0,
+        Orientation.SOUTH: current_coordinates.y > 0,
+        Orientation.EAST: current_coordinates.x < 0,
+        Orientation.WEST: current_coordinates.x > 0,
+    }.get(current_orientation, True)
+
+    if should_go_forward:
+        dir = RobotAction.GO_FORWARD
+        new_orientation = current_orientation
+
+    elif current_coordinates.x == 0:
         if current_coordinates.y == 0:
             dir = None
             new_orientation = current_orientation
@@ -55,6 +69,7 @@ def get_direction(current_coordinates, current_orientation):
         else:
             (new_orientation, dir) = new_direction(
                 current_orientation, Orientation.NORTH)
+
     else:
         if current_coordinates.x > 0:
             (new_orientation, dir) = new_direction(

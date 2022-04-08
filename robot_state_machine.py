@@ -1,7 +1,7 @@
 from time import sleep
 
 from constants import DELIMITER, Orientation, Side, ServerMessages
-from robot import RobotDirection, get_direction, RobotStates, calculate_hash
+from robot import RobotAction, get_direction, RobotStates, calculate_hash, new_direction
 from robot_constants import RobotMessagesRestrictions
 from utils import Coordinates
 
@@ -39,6 +39,8 @@ class RobotStateMachine:
 
             msg = DELIMITER.join(tokens[1:])
 
+            print(robot.coordinates, robot.orientation, robot.last_action)
+
         return msg
 
 
@@ -71,7 +73,8 @@ def confirmation_key_transition(robot, msg, client_socket):
     hash_expected = calculate_hash(robot.username, robot.key, Side.CLIENT)
     hash_received = int(msg)
     if hash_expected != hash_received:
-        print("Login failed for ", robot, " hash expected: ", hash_expected, " hash received: ", hash_received)
+        print("Login failed for ", robot, " hash expected: ",
+              hash_expected, " hash received: ", hash_received)
         client_socket.send(
             ServerMessages.LOGIN_FAILED.value.encode())
         return None
@@ -86,6 +89,20 @@ def first_move_transition(robot, msg, client_socket):
     robot.coordinates = Coordinates(*positions)
     client_socket.send(ServerMessages.MOVE.value.encode())
     robot.state = RobotStates.ORIENTATION
+
+
+def execute_movement(robot, client_socket):
+    (new_orientation, rotate_to) = get_direction(
+        robot.coordinates, robot.orientation)
+    robot.orientation = new_orientation
+
+    if rotate_to is None:
+        # reached 0,0
+        client_socket.send(ServerMessages.PICK_UP.value.encode())
+        robot.state = RobotStates.WAIT_SECRET
+    else:
+        robot.last_rotation = rotate_to
+        send_action(robot, rotate_to, client_socket)
 
 
 def orientation_transition(robot, msg, client_socket):
@@ -103,36 +120,82 @@ def orientation_transition(robot, msg, client_socket):
     if not robot.orientation:
         client_socket.send(
             ServerMessages.TURN_RIGHT.value.encode())
+        robot.state = RobotStates.FIRST_MOVE
         return
 
+    execute_movement(robot, client_socket)
     robot.state = RobotStates.COMMAND
-    command_transtition(robot, msg, client_socket)
+
+
+def send_action(robot, action, client_socket):
+    if action == RobotAction.GO_FORWARD:
+        client_socket.send(ServerMessages.MOVE.value.encode())
+        robot.last_action = RobotAction.GO_FORWARD
+    elif action == RobotAction.TURN_RIGHT:
+        client_socket.send(ServerMessages.TURN_RIGHT.value.encode())
+        robot.last_action = RobotAction.TURN_RIGHT
+    else:
+        client_socket.send(ServerMessages.TURN_LEFT.value.encode())
+        robot.last_action = RobotAction.TURN_LEFT
 
 
 def command_transtition(robot, msg, client_socket):
-
     current_coordinates = Coordinates(*msg.split(" ")[1:])
-    print(str(current_coordinates), robot.orientation)
-    if current_coordinates == robot.coordinates:
-        # TODO: should rotate to the correct side and go forward
-        client_socket.send(ServerMessages.TURN_RIGHT.value.encode())
-        return
 
-    robot.coordinates = current_coordinates
-    (new_orientation, dir) = get_direction(
-        robot.coordinates, robot.orientation)
-    robot.orientation = new_orientation
-    if dir is None:
-        # reached 0,0
-        client_socket.send(ServerMessages.PICK_UP.value.encode())
-        robot.state = RobotStates.WAIT_SECRET
-    elif dir == RobotDirection.FORWARD:
-        client_socket.send(ServerMessages.MOVE.value.encode())
-    elif dir == RobotDirection.RIGHT:
-        client_socket.send(ServerMessages.TURN_RIGHT.value.encode())
+    if current_coordinates == robot.coordinates and robot.last_action == RobotAction.GO_FORWARD:
+        print("IMPACT!")
+        if robot.coordinates.x == 0 or robot.coordinates.y == 0:
+            # requires double forced rotation
+            dodge_rotation_transition(robot, msg, client_socket, True)
+        else:
+            dodge_rotation_transition(robot, msg, client_socket, False)
     else:
-        client_socket.send(ServerMessages.TURN_LEFT.value.encode())
+        robot.coordinates = current_coordinates
+        execute_movement(robot, client_socket)
 
+
+def dodge_rotation_transition(robot, msg, client_socket, double_rotation):
+    if robot.orientation == Orientation.NORTH or robot.orientation == Orientation.SOUTH:
+        (new_orientation, rotate_to) = new_direction(robot.orientation,
+                                                     Orientation.EAST if robot.coordinates.x < 0 else Orientation.WEST)
+    else:
+        (new_orientation, rotate_to) = new_direction(robot.orientation,
+                                                     Orientation.NORTH if robot.coordinates.y < 0 else Orientation.SOUTH)
+
+    robot.orientation = new_orientation
+    robot.last_rotation = rotate_to
+    send_action(robot, rotate_to, client_socket)
+    if double_rotation:
+        robot.state = RobotStates.DODGE_FIRST_FORWARD
+    else:
+        robot.state = RobotStates.DODGE_SECOND_FORWARD
+
+
+def dodge_transition(robot, msg, client_socket):
+    current_coordinates = Coordinates(*msg.split(" ")[1:])
+    robot.coordinates = current_coordinates
+
+    if robot.state == RobotStates.DODGE_FIRST_FORWARD:
+        send_action(robot, RobotAction.GO_FORWARD, client_socket)
+        robot.state = RobotStates.DODGE_SECOND_ROTATION
+
+    elif robot.state == RobotStates.DODGE_SECOND_ROTATION:
+        rotate_to = RobotAction(robot.last_rotation.value * -1)
+
+        send_action(robot, rotate_to, client_socket)
+        robot.last_rotation = rotate_to
+        robot.state = RobotStates.DODGE_SECOND_FORWARD
+        orientation_to_the_right = Orientation(
+            (abs(robot.orientation.value * 2)) % 3 * (-1 if robot.orientation.value % 3 == 2 else 1))
+        robot.orientation = Orientation(
+            orientation_to_the_right.value * (1 if rotate_to == RobotAction.TURN_RIGHT else -1))
+
+    elif robot.state == RobotStates.DODGE_SECOND_FORWARD:
+        send_action(robot, RobotAction.GO_FORWARD, client_socket)
+        robot.state = RobotStates.COMMAND
+
+    else:
+        print("Invalid state for dodge transition")
 
 
 def wait_secret_transition(robot, msg, client_socket):
@@ -149,6 +212,9 @@ def new_robot_state_machine():
     sm.add_state(RobotStates.FIRST_MOVE, first_move_transition)
     sm.add_state(RobotStates.ORIENTATION, orientation_transition)
     sm.add_state(RobotStates.COMMAND, command_transtition)
+    sm.add_state(RobotStates.DODGE_FIRST_FORWARD, dodge_transition)
+    sm.add_state(RobotStates.DODGE_SECOND_ROTATION, dodge_transition)
+    sm.add_state(RobotStates.DODGE_SECOND_FORWARD, dodge_transition)
     sm.add_state(RobotStates.WAIT_SECRET, wait_secret_transition)
 
     sm.set_start_state(RobotStates.USERNAME)

@@ -11,3 +11,9 @@ class Coordinates:
 
     def __str__(self):
         return "(" + str(self.x) + ", " + str(self.y) + ")"
+
+    def __eq__(self, other):
+        if isinstance(other, Coordinates):
+            return self.x == other.x and self.y == other.y
+
+        return NotImplemented
