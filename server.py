@@ -47,7 +47,7 @@ while True:
         new_socket.close()
         continue
 
-    l.close()
+    #l.close()
 
     print(address)
     new_socket.settimeout(robot_constants.TIMEOUT)

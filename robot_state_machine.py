@@ -3,7 +3,7 @@ from time import sleep
 from constants import DELIMITER, Orientation, Side, ServerMessages
 from robot import RobotAction, get_direction, RobotStates, calculate_hash, new_direction
 import robot_constants
-from utils import Coordinates
+from utils import Coordinates, is_integer
 
 
 class RobotStateMachine:
@@ -32,14 +32,24 @@ class RobotStateMachine:
             tokens = msg.split(DELIMITER)
             if len(tokens[0]) > robot_constants.MESSAGE_MAX_LENGTH:
                 client_socket.send(ServerMessages.SYNTAX_ERROR.value.encode())
-                return
-            
+                return None
+
             if tokens[0] == robot_constants.RECHARGING_STR:
                 robot.recharging = True
                 client_socket.settimeout(robot_constants.TIMEOUT_RECHARGING)
-            elif robot.recharging and tokens[0] == robot_constants.FULLPOWER_STR:
+
+            elif tokens[0] == robot_constants.FULLPOWER_STR:
+                if not robot.recharging:
+                    client_socket.send(
+                        ServerMessages.LOGIC_ERROR.value.encode())
+                    return None
                 robot.recharging = False
                 client_socket.settimeout(robot_constants.TIMEOUT)
+
+            elif robot.recharging:
+                client_socket.send(ServerMessages.LOGIC_ERROR.value.encode())
+                return None
+
             else:
                 handler = self.handlers[robot.state]
                 handler(robot, tokens[0], client_socket)
@@ -66,7 +76,7 @@ def username_transition(robot, username, client_socket):
 
 
 def key_transition(robot, msg, client_socket):
-    if not str(msg).isnumeric():
+    if not is_integer(str(msg)):
         client_socket.send(ServerMessages.SYNTAX_ERROR.value.encode())
         return
 
@@ -85,7 +95,7 @@ def key_transition(robot, msg, client_socket):
 
 
 def confirmation_key_transition(robot, msg, client_socket):
-    if not str(msg).isnumeric():
+    if not is_integer(str(msg)):
         client_socket.send(ServerMessages.SYNTAX_ERROR.value.encode())
         return
 
@@ -111,7 +121,7 @@ def confirmation_key_transition(robot, msg, client_socket):
 
 def first_move_transition(robot, msg, client_socket):
     positions_str = msg.split(" ")[1:]
-    if len(positions_str) > 2:
+    if len(positions_str) > 2 or not is_integer(positions_str[0]) or not is_integer(positions_str[1]):
         client_socket.send(ServerMessages.SYNTAX_ERROR.value.encode())
         return
 

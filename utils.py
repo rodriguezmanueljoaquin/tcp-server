@@ -17,3 +17,9 @@ class Coordinates:
             return self.x == other.x and self.y == other.y
 
         return NotImplemented
+
+
+def is_integer(str):
+    if str[0] in ('-', '+'):
+        return str[1:].isdigit()
+    return str.isdigit()
