@@ -1,5 +1,3 @@
-from time import sleep
-
 from constants import DELIMITER, Orientation, Side, ServerMessages
 from robot import RobotAction, get_direction, RobotStates, calculate_hash, new_direction
 import robot_constants

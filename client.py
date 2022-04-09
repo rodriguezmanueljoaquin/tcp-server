@@ -1,11 +1,12 @@
 import socket
-import sys
 from time import sleep
 import fileinput
 from constants import Orientation, Side, DELIMITER
 from robot import Robot, calculate_hash
 
 from utils import Coordinates
+
+# test client, not official
 
 
 def orientation_change(orientation, turn):
@@ -34,7 +35,6 @@ def move_forward(old_coordinates, orientation):
     return new_coordinates
 
 
-# test client, not official
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 robot = Robot()
 robot.username = "Meow!"

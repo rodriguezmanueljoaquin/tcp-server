@@ -1,6 +1,6 @@
 import os
 import socket
-
+import argparse
 import robot_constants
 from robot import Robot
 from robot_state_machine import new_robot_state_machine
@@ -29,13 +29,19 @@ def serve_client(socket):
 
 # socket creation: ip/tcp
 l = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# binding the socket to this device, port number 6666
-l.bind(('localhost', 6667))
+parser = argparse.ArgumentParser(description="TCP-Server for robot clients",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("-p", "--port", default="6667",
+                    help="Port where the server will run")
+parser.add_argument("-a", "--address", default="localhost",
+                    help="Address where the server will run")
+args = parser.parse_args()
+l.bind((args.address, int(args.port )))
 l.listen(10)  # number of clients
 
 sm = new_robot_state_machine()
 
-print("Server waiting for clients...")
+print("Server waiting for clients on " + args.address + ":" + args.port  + " ...")
 while True:
 
     # accept returns newly created socket and address of the client
@@ -47,7 +53,7 @@ while True:
         new_socket.close()
         continue
 
-    #l.close()
+    # l.close()
 
     print(address)
     new_socket.settimeout(robot_constants.TIMEOUT)

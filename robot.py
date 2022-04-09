@@ -48,7 +48,6 @@ def new_direction(current_orientation, searched_orientation):
 
 
 def get_direction(current_coordinates, current_orientation):
-    # could be more efficient, this one makes unnecesary turns
     should_go_forward = {
         Orientation.NORTH: current_coordinates.y < 0,
         Orientation.SOUTH: current_coordinates.y > 0,
