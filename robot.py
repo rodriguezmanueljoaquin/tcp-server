@@ -3,7 +3,8 @@ from robot_constants import AuthenticationKeys, RobotAction, RobotStates
 
 
 class Robot:
-    def __init__(self):
+    def __init__(self, robot_id):
+        self.id = robot_id
         self.state = RobotStates.USERNAME
         self.username = ''
         self.key = -1
@@ -14,7 +15,7 @@ class Robot:
         self.recharging = False
 
     def __str__(self):
-        return "Robot info:\n\tName: " + self.username + ", state: " + str(self.state) + ", coordinates: " + str(self.coordinates) + ", orientation: " + str(self.orientation)
+        return "Robot info:\nID:" + str(self.id) + ", name: '" + self.username + "', state: " + str(self.state) + ", coordinates: " + str(self.coordinates) + ", orientation: " + str(self.orientation)
 
 
 def calculate_hash(username, key, server_side):

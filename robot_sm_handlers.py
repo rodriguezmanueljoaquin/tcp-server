@@ -1,83 +1,16 @@
-from constants import DELIMITER, Orientation, Side, ServerMessages
+from constants import Orientation, Side, ServerMessages
 from robot import RobotAction, get_direction, RobotStates, calculate_hash, new_direction
 import robot_constants
-from utils import Coordinates, is_integer
+from utils import Coordinates
 
 
-class RobotStateMachine:
-    def __init__(self):
-        self.handlers = {}
-        self.start_state = None
-        self.end_states = []
-
-    def add_state(self, id, handler, end_state=0):
-        self.id = id
-        self.handlers[id] = handler
-        if end_state:
-            self.end_states.append(id)
-
-    def set_start_state(self, id):
-        self.start_state = id
-
-    def set_end_state(self, id):
-        self.end_states.append(id)
-
-    def run(self, robot, msg, client_socket):
-        if msg is None:
-            return msg
-        while DELIMITER in msg:
-
-            tokens = msg.split(DELIMITER)
-            if len(tokens[0]) > robot_constants.MESSAGE_MAX_LENGTH:
-                client_socket.send(ServerMessages.SYNTAX_ERROR.value.encode())
-                return None
-
-            if tokens[0] == robot_constants.RECHARGING_STR:
-                robot.recharging = True
-                client_socket.settimeout(robot_constants.TIMEOUT_RECHARGING)
-
-            elif tokens[0] == robot_constants.FULLPOWER_STR:
-                if not robot.recharging:
-                    client_socket.send(
-                        ServerMessages.LOGIC_ERROR.value.encode())
-                    return None
-                robot.recharging = False
-                client_socket.settimeout(robot_constants.TIMEOUT)
-
-            elif robot.recharging:
-                client_socket.send(ServerMessages.LOGIC_ERROR.value.encode())
-                return None
-
-            else:
-                handler = self.handlers[robot.state]
-                handler(robot, tokens[0], client_socket)
-
-                if robot.state in self.end_states:
-                    print("Reached end state")
-                    return None
-
-            msg = DELIMITER.join(tokens[1:])
-
-            print(robot.coordinates, robot.orientation, robot.last_action)
-
-        return msg
-
-
-def username_transition(robot, username, client_socket):
-    if len(username) > robot_constants.USERNAME_MAX_LENGTH:
-        client_socket.send(ServerMessages.SYNTAX_ERROR.value.encode())
-        return
-    else:
-        robot.state = RobotStates.KEY
-        robot.username = username
-        client_socket.send(ServerMessages.KEY_REQUEST.value.encode())
+def username_transition(robot, msg, client_socket):
+    robot.state = RobotStates.KEY
+    robot.username = msg
+    client_socket.send(ServerMessages.KEY_REQUEST.value.encode())
 
 
 def key_transition(robot, msg, client_socket):
-    if not is_integer(str(msg)):
-        client_socket.send(ServerMessages.SYNTAX_ERROR.value.encode())
-        return
-
     key = int(msg)
     if key < robot_constants.KEY_MIN_VALUE or key > robot_constants.KEY_MAX_VALUE:
         print("Key out of range for ", robot)
@@ -93,16 +26,13 @@ def key_transition(robot, msg, client_socket):
 
 
 def confirmation_key_transition(robot, msg, client_socket):
-    if not is_integer(str(msg)):
-        client_socket.send(ServerMessages.SYNTAX_ERROR.value.encode())
-        return
-
     hash_expected = calculate_hash(robot.username, robot.key, Side.CLIENT)
     hash_received = int(msg)
 
     if hash_received > robot_constants.HASH_MAX_VALUE or hash_received < robot_constants.HASH_MIN_VALUE:
         client_socket.send(
             ServerMessages.SYNTAX_ERROR.value.encode())
+        robot.state = RobotStates.LOGOUT
         return
 
     if hash_expected != hash_received:
@@ -110,23 +40,24 @@ def confirmation_key_transition(robot, msg, client_socket):
               hash_expected, " hash received: ", hash_received)
         client_socket.send(
             ServerMessages.LOGIN_FAILED.value.encode())
-        return None
+        return
 
     client_socket.send(ServerMessages.OK.value.encode())
     robot.state = RobotStates.FIRST_MOVE
     client_socket.send(ServerMessages.MOVE.value.encode())
+    return
+
+
+def get_positions(msg):
+    positions_str = msg.split(" ")[1:]
+    return Coordinates(*positions_str)
 
 
 def first_move_transition(robot, msg, client_socket):
-    positions_str = msg.split(" ")[1:]
-    if len(positions_str) > 2 or not is_integer(positions_str[0]) or not is_integer(positions_str[1]):
-        client_socket.send(ServerMessages.SYNTAX_ERROR.value.encode())
-        return
-
-    positions = [*map(lambda x: int(x), positions_str[0:2])]
-    robot.coordinates = Coordinates(*positions)
+    robot.coordinates = get_positions(msg)
     client_socket.send(ServerMessages.MOVE.value.encode())
     robot.state = RobotStates.ORIENTATION
+    return
 
 
 def execute_next_move(robot, client_socket):
@@ -144,16 +75,17 @@ def execute_next_move(robot, client_socket):
 
 
 def orientation_transition(robot, msg, client_socket):
-    new_coordinates = Coordinates(*msg.split(" ")[1:])
-    orientation_value = (robot.coordinates.x - new_coordinates.x) * \
-        2 + (robot.coordinates.y - new_coordinates.y)
+    current_coordinates = get_positions(msg)
+
+    orientation_value = (robot.coordinates.x - current_coordinates.x) * \
+        2 + (robot.coordinates.y - current_coordinates.y)
     robot.orientation = {
         -2: Orientation.EAST,
         2: Orientation.WEST,
         1: Orientation.SOUTH,
         -1: Orientation.NORTH
     }.get(orientation_value, None)
-    robot.coordinates = new_coordinates
+    robot.coordinates = current_coordinates
 
     if not robot.orientation:
         client_socket.send(
@@ -163,6 +95,7 @@ def orientation_transition(robot, msg, client_socket):
 
     execute_next_move(robot, client_socket)
     robot.state = RobotStates.COMMAND
+    return
 
 
 def send_action(robot, action, client_socket):
@@ -178,21 +111,22 @@ def send_action(robot, action, client_socket):
 
 
 def command_transtition(robot, msg, client_socket):
-    current_coordinates = Coordinates(*msg.split(" ")[1:])
+    current_coordinates = get_positions(msg)
 
     if current_coordinates == robot.coordinates and robot.last_action == RobotAction.GO_FORWARD:
-        print("IMPACT!")
         if robot.coordinates.x == 0 or robot.coordinates.y == 0:
             # requires double forced rotation
-            dodge_rotation_transition(robot, msg, client_socket, True)
+            dodge_rotation(robot, client_socket, True)
         else:
-            dodge_rotation_transition(robot, msg, client_socket, False)
+            dodge_rotation(robot, client_socket, False)
     else:
         robot.coordinates = current_coordinates
         execute_next_move(robot, client_socket)
 
+    return
 
-def dodge_rotation_transition(robot, msg, client_socket, double_rotation):
+
+def dodge_rotation(robot, client_socket, double_rotation):
     if robot.orientation == Orientation.NORTH or robot.orientation == Orientation.SOUTH:
         (new_orientation, rotate_to) = new_direction(robot.orientation,
                                                      Orientation.EAST if robot.coordinates.x < 0 else Orientation.WEST)
@@ -210,9 +144,7 @@ def dodge_rotation_transition(robot, msg, client_socket, double_rotation):
 
 
 def dodge_transition(robot, msg, client_socket):
-    current_coordinates = Coordinates(*msg.split(" ")[1:])
-    robot.coordinates = current_coordinates
-
+    robot.coordinates = get_positions(msg)
     if robot.state == RobotStates.DODGE_FIRST_FORWARD:
         send_action(robot, RobotAction.GO_FORWARD, client_socket)
         robot.state = RobotStates.DODGE_SECOND_ROTATION
@@ -234,29 +166,15 @@ def dodge_transition(robot, msg, client_socket):
 
     else:
         print("Invalid state for dodge transition")
+        client_socket.send(
+            ServerMessages.LOGIC_ERROR.value.encode())
+        robot.state = RobotStates.LOGOUT
+
+    return
 
 
 def wait_secret_transition(robot, msg, client_socket):
     print("Secret of robot ", robot.username, " is: ", msg)
     client_socket.send(ServerMessages.LOGOUT.value.encode())
     robot.state = RobotStates.LOGOUT
-
-
-def new_robot_state_machine():
-    sm = RobotStateMachine()
-    sm.add_state(RobotStates.USERNAME, username_transition)
-    sm.add_state(RobotStates.KEY, key_transition)
-    sm.add_state(RobotStates.CONFIRMATION_KEY, confirmation_key_transition)
-    sm.add_state(RobotStates.FIRST_MOVE, first_move_transition)
-    sm.add_state(RobotStates.ORIENTATION, orientation_transition)
-    sm.add_state(RobotStates.COMMAND, command_transtition)
-    sm.add_state(RobotStates.DODGE_FIRST_FORWARD, dodge_transition)
-    sm.add_state(RobotStates.DODGE_SECOND_ROTATION, dodge_transition)
-    sm.add_state(RobotStates.DODGE_SECOND_FORWARD, dodge_transition)
-    sm.add_state(RobotStates.WAIT_SECRET, wait_secret_transition)
-
-    sm.set_start_state(RobotStates.USERNAME)
-
-    sm.set_end_state(RobotStates.LOGOUT)
-
-    return sm
+    return

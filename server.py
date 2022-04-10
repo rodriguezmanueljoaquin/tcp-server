@@ -3,11 +3,11 @@ import socket
 import argparse
 import robot_constants
 from robot import Robot
-from robot_state_machine import new_robot_state_machine
+from robot_sm import new_robot_state_machine
 
 
-def serve_client(socket):
-    robot = Robot()
+def serve_client(socket, robot_id):
+    robot = Robot(robot_id)
 
     data = ""
     while True:
@@ -42,6 +42,7 @@ l.listen(10)  # number of clients
 sm = new_robot_state_machine()
 
 print("Server waiting for clients on " + args.address + ":" + args.port  + " ...")
+robot_id = 0
 while True:
 
     # accept returns newly created socket and address of the client
@@ -51,6 +52,7 @@ while True:
 
     if child_pid != 0:  # we are in the parent thread
         new_socket.close()
+        robot_id += 1
         continue
 
     # l.close()
@@ -58,7 +60,7 @@ while True:
     print(address)
     new_socket.settimeout(robot_constants.TIMEOUT)
     try:
-        serve_client(new_socket)
+        serve_client(new_socket, robot_id)
         new_socket.close()
         break  # child executes only one cycle
 

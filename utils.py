@@ -1,3 +1,6 @@
+from constants import DELIMITER
+
+
 class AuthenticationKeyPair:
     def __init__(self, server_key, client_key):
         self.server_key = server_key
@@ -20,6 +23,13 @@ class Coordinates:
 
 
 def is_integer(str):
+    possible_suffixes = ()
+    for x in range(1, len(DELIMITER)):
+        possible_suffixes += (DELIMITER[:x],)
+
+    # +1 because of the possible sing(+ or -)
+    if len(str) <= len(DELIMITER)-1 + 1 or str.endswith(possible_suffixes):
+        return True
     if str[0] in ('-', '+'):
         return str[1:].isdigit()
     return str.isdigit()

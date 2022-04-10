@@ -14,6 +14,10 @@ FULLPOWER_STR = "FULL POWER"
 TIMEOUT = 1
 TIMEOUT_RECHARGING = 5
 
+NOT_COMPLETED_MSG = 0
+VALID_MSG = 1
+INVALID_MSG = -1
+
 
 class RobotStates(Enum):
     # Server waiting for:
